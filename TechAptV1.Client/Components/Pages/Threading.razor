@@ -3,9 +3,30 @@
 <h3>Threading &amp; Data Persistence</h3>
 
 <div>
-    <button class="btn btn-primary" @onclick="(async () => await this.Start())">Start</button>
-    <button class="btn btn-primary" @onclick="(async () => await this.Save())">Save</button>
+    <button class="btn btn-primary" @onclick="Start" disabled="@_isProcessing">
+        @if (_isProcessing)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Processing Data...</span>
+        }
+        else
+        {
+            <span>Start</span>
+        }
+    </button>
+    <button class="btn btn-primary" @onclick="Save" disabled="@(!_canSave || _isSaving)">
+        @if (_isSaving)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Saving Data...</span>
+        }
+        else
+        {
+            <span>Save</span>
+        }
+    </button>
 </div>
+
 <div>
     <hr>
     <h4>Numbers:</h4>
@@ -27,16 +48,38 @@
     private int _primeNumbers = 0;
     private int _totalNumbers = 0;
 
+    private bool _isProcessing = false;
+    private bool _isSaving = false;
+    private bool _canSave = false;
+
     private async Task Start()
     {
-        this.Logger.LogInformation("Start");
-        throw new NotImplementedException();
+        if (_isProcessing) return;
+
+        _isProcessing = true;
+        _canSave = false; // Ensure save is disabled while processing
+        StateHasChanged();
+
+        Logger.LogInformation("Starting computation...");
+        await Task.Delay(5000); // Simulating computation
+
+        _isProcessing = false;
+        _canSave = true; // Allow saving after computation
+        StateHasChanged();
     }
 
     private async Task Save()
     {
-        this.Logger.LogInformation("Save");
-        throw new NotImplementedException();
-    }
+        if (!_canSave || _isSaving) return;
 
+        _isSaving = true;
+        StateHasChanged();
+
+        Logger.LogInformation("Saving data...");
+        await Task.Delay(1000); // Simulating save
+
+        _isSaving = false;
+        _canSave = false; // Prevent saving again after one save
+        StateHasChanged();
+    }
 }
