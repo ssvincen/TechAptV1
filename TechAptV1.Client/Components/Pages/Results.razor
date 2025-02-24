@@ -7,8 +7,9 @@
 <p>The table shows the top N numbers generated. The download XML and Binary feature allows you to download the entire data set</p>
 
 <div>
-    <button class="btn btn-primary" @onclick="DownloadXml" disabled="@(isDownloadingXml || isDownloadingBinary)">
-        @if (isDownloadingXml)
+    @* To prevent user from click two buttons at the same time. One button at a time *@
+    <button class="btn btn-primary" @onclick="DownloadXml" disabled="@(_isDownloadingXml || _isDownloadingBinary)">
+        @if (_isDownloadingXml)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             <span> Downloading XML...</span>
@@ -18,8 +19,8 @@
             <span>Download XML</span>
         }
     </button>
-    <button class="btn btn-primary" @onclick="DownloadBinary" disabled="@(isDownloadingBinary || isDownloadingXml)">
-        @if (isDownloadingBinary)
+    <button class="btn btn-primary" @onclick="DownloadBinary" disabled="@(_isDownloadingBinary || _isDownloadingXml)">
+        @if (_isDownloadingBinary)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             <span> Downloading Binary...</span>
@@ -50,6 +51,27 @@
     </table>
 </div>
 
+@if (_showDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-info">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">Notice</h5>
+                    <button type="button" class="btn-close text-white" @onclick="CloseDialog" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light text-info">
+                    <p>@_dialogMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info" @onclick="CloseDialog">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
@@ -57,12 +79,21 @@
     @inject IJSRuntime JS
 
     private List<Number> numbers = new ();
-    private bool isDownloadingXml = false;
-    private bool isDownloadingBinary = false;
+    private bool _isDownloadingXml = false;
+    private bool _isDownloadingBinary = false;
+    private bool _showDialog = false;
+    private string _dialogMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         numbers = await ThreadingService.Get(20);
+    }
+
+
+    private void CloseDialog()
+    {
+        _showDialog = false;
+        StateHasChanged();
     }
 
 
@@ -71,11 +102,11 @@
     /// </summary>
     private async Task DownloadXml()
     {
-        if (isDownloadingXml) return; // Prevent duplicate clicks
+        if (_isDownloadingXml) return; // Prevent duplicate clicks
 
         try
         {
-            isDownloadingXml = true;
+            _isDownloadingXml = true;
             StateHasChanged();
             await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
             Logger.LogInformation("DownloadXml started...");
@@ -84,6 +115,10 @@
             if (dbnumbers == null || !dbnumbers.Any())
             {
                 Logger.LogWarning("No data found to download.");
+                _isDownloadingXml = false;
+                _dialogMessage = "No data found to download.";
+                _showDialog = true;
+                StateHasChanged();
                 return;
             }
 
@@ -116,7 +151,7 @@
         }
         finally
         {
-            isDownloadingXml = false;
+            _isDownloadingXml = false;
             StateHasChanged();
         }
     }
@@ -127,10 +162,10 @@
     /// </summary>
     private async Task DownloadBinary()
     {
-        if (isDownloadingBinary) return;
+        if (_isDownloadingBinary) return;
         try
         {
-            isDownloadingBinary = true;
+            _isDownloadingBinary = true;
             StateHasChanged();
             await Task.Delay(1);
             Logger.LogInformation("DownloadBinary");
@@ -139,6 +174,10 @@
             if (dbnumbers == null || !dbnumbers.Any())
             {
                 Logger.LogWarning("No data found to download.");
+                _isDownloadingBinary = false;
+                _dialogMessage = "No data found to download.";
+                _showDialog = true;
+                StateHasChanged();
                 return;
             }
 
@@ -169,7 +208,7 @@
         }
         finally
         {
-            isDownloadingBinary = false;
+            _isDownloadingBinary = false;
             StateHasChanged();
         }
     }
