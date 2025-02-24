@@ -124,7 +124,7 @@ public sealed class DataService
             }
             this._logger.LogInformation("Daata successfully fetched.");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _logger.LogError($"Error fetching all records. Error: {ex.Message}");
         }

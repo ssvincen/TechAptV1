@@ -36,6 +36,17 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
         {
             return;
         }
+
+        // Check if there are existing values if there are, reset them
+        if (_totalNumbers > 0)
+        {
+            logger.LogInformation($"Previous computation detected - Odd: {_oddNumbers}, Even: {_evenNumbers}, Prime: {_primeNumbers}, Total: {_totalNumbers}");
+
+            // Reset before starting a new computation
+            logger.LogInformation("Resetting values...");
+            ResetCount();
+        }
+
         _isRunning = true;
         logger.LogInformation("Start");
 
@@ -53,6 +64,9 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
                     Task.Run(GenerateEvenNumbers); // More efficient than Thread.Start()
                 }
             }
+            //I notice that the CPU usage is high when the number of threads is high
+            //Insert a delay to prevent CPU overload
+            //Since there is no sleep or delay, the CPU works at a higher usage, even though it’s just waiting for a condition to be met.
             await Task.Delay(100); // Prevent excessive CPU usage
         }
         logger.LogInformation("Max limit reached. Stopping tasks...");
@@ -112,7 +126,22 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
         return response.ToList();
     }
 
-
+    /// <summary>
+    /// Reset all values to their initial state
+    /// </summary>
+    public void ResetCount()
+    {
+        lock (_lock)
+        {
+            _oddNumbers = 0;
+            _evenNumbers = 0;
+            _primeNumbers = 0;
+            _totalNumbers = 0;
+            _numbers.Clear();
+            _isRunning = false;
+        }
+        logger.LogInformation("ThreadingService has been reset.");
+    }
 
     #region private methods
 
@@ -179,9 +208,18 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
         {
             return false;
         }
-        for (int i = 2; i <= Math.Sqrt(number); i++)
+        if (number <= 3)
         {
-            if (number % i == 0)
+            return true;
+        }
+        if (number % 2 == 0 || number % 3 == 0)
+        {
+            return false;
+        }
+
+        for (int i = 5; i * i <= number; i += 6)
+        {
+            if (number % i == 0 || number % (i + 2) == 0)
             {
                 return false;
             }

@@ -1,4 +1,5 @@
 ﻿@page "/results"
+@using System.Xml.Serialization
 @using TechAptV1.Client.Models
 @using TechAptV1.Client.Services
 
@@ -6,25 +7,45 @@
 <p>The table shows the top N numbers generated. The download XML and Binary feature allows you to download the entire data set</p>
 
 <div>
-    <button class="btn btn-primary" @onclick="(async () => await this.DownloadXml())">Download XML</button>
-    <button class="btn btn-primary" @onclick="(async () => await this.DownloadBinary())">Download Binary</button>
+    <button class="btn btn-primary" @onclick="DownloadXml" disabled="@(isDownloadingXml || isDownloadingBinary)">
+        @if (isDownloadingXml)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Downloading XML...</span>
+        }
+        else
+        {
+            <span>Download XML</span>
+        }
+    </button>
+    <button class="btn btn-primary" @onclick="DownloadBinary" disabled="@(isDownloadingBinary || isDownloadingXml)">
+        @if (isDownloadingBinary)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Downloading Binary...</span>
+        }
+        else
+        {
+            <span>Download Binary</span>
+        }
+    </button>
 </div>
 <div>
     <table class="table">
         <thead>
-        <tr>
-            <th>Value</th>
-            <th>IsPrime</th>
-        </tr>
+            <tr>
+                <th>Value</th>
+                <th>IsPrime</th>
+            </tr>
         </thead>
         <tbody>
-        @foreach (var item in this.numbers)
-        {
-            <tr>
-                <td>@item.Value</td>
-                <td>@item.IsPrime</td>
-            </tr>
-        }
+            @foreach (var item in this.numbers)
+            {
+                <tr>
+                    <td>@item.Value</td>
+                    <td>@item.IsPrime</td>
+                </tr>
+            }
         </tbody>
     </table>
 </div>
@@ -33,8 +54,11 @@
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
     @inject ThreadingService ThreadingService
+    @inject IJSRuntime JS
 
     private List<Number> numbers = new ();
+    private bool isDownloadingXml = false;
+    private bool isDownloadingBinary = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -46,8 +70,51 @@
     /// </summary>
     private async Task DownloadXml()
     {
-        this.Logger.LogInformation("DownloadXml");
-        var numbers = await ThreadingService.Get(5);
+        if (isDownloadingXml) return; // Prevent duplicate clicks
+        try
+        {
+            isDownloadingXml = true;
+            StateHasChanged();
+            await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
+            this.Logger.LogInformation("DownloadXml");
+
+            var dbnumbers = await ThreadingService.GetAll();
+            if (dbnumbers == null || !dbnumbers.Any())
+            {
+                Logger.LogWarning("No data found to download.");
+                return;
+            }
+            var fileName = "NumbersData.xml";
+            // Stream XML directly to memory (instead of writing to file)
+            using var memoryStream = new MemoryStream();
+            // using var writer = new StreamWriter(memoryStream, Encoding.UTF8, 4096, leaveOpen: true);
+            using var writer = new StreamWriter(memoryStream, leaveOpen: true);
+            var xmlSerializer = new XmlSerializer(typeof(List<Number>));
+
+            xmlSerializer.Serialize(writer, dbnumbers);
+            await writer.FlushAsync();
+
+            // Convert memory stream to Base64 for JavaScript download
+            var base64Data = Convert.ToBase64String(memoryStream.ToArray());
+
+            // Call JavaScript to trigger download
+            await JS.InvokeVoidAsync("triggerFileDownload", fileName, base64Data, "application/xml");
+
+            Logger.LogInformation("XML file download triggered successfully.");
+        }
+        catch (OutOfMemoryException ex)
+        {
+            Logger.LogError(ex, "Out of memory error while downloading XML.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during XML file download.");
+        }
+        finally
+        {
+            isDownloadingXml = false;
+            StateHasChanged();
+        }
     }
 
     /// <summary>
@@ -55,8 +122,46 @@
     /// </summary>
     private async Task DownloadBinary()
     {
-        this.Logger.LogInformation("DownloadBinary");
-        var numbers = await ThreadingService.GetAll();
+        if (isDownloadingBinary) return;
+        try
+        {
+            isDownloadingBinary = true;
+            StateHasChanged();
+            await Task.Delay(1);
+            this.Logger.LogInformation("DownloadBinary");
+            var dbnumbers = await ThreadingService.Get(5);
+            if (dbnumbers == null || !dbnumbers.Any())
+            {
+                Logger.LogWarning("No data found to download.");
+                return;
+            }
+            using var memoryStream = new MemoryStream();
+            using (var writer = new BinaryWriter(memoryStream))
+            {
+                foreach (var num in numbers)
+                {
+                    writer.Write(num.Value);
+                    writer.Write(num.IsPrime);
+                }
+            }
+            var fileBytes = memoryStream.ToArray();
+            var fileName = "NumbersData.bin";
+            await JS.InvokeVoidAsync("triggerFileDownload", fileName, Convert.ToBase64String(fileBytes), "application/octet-stream");
+            this.Logger.LogInformation("Binary file download completed successfully.");
+        }
+        catch (OutOfMemoryException ex)
+        {
+            this.Logger.LogError(ex, "Out of memory error while downloading Binary.");
+        }
+        catch (Exception ex)
+        {
+            this.Logger.LogError(ex, "Error during Binary file download.");
+        }
+        finally
+        {
+            isDownloadingXml = false;
+            StateHasChanged();
+        }
     }
 
 }

@@ -4,7 +4,7 @@
 <h3>Threading &amp; Data Persistence</h3>
 
 <div>
-    <button class="btn btn-primary" @onclick="Start" disabled="@_isProcessing">
+    <button class="btn btn-primary" @onclick="Start" disabled="@(_isProcessing || _isSaving)">
         @if (_isProcessing)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -15,7 +15,7 @@
             <span>Start</span>
         }
     </button>
-    <button class="btn btn-primary" @onclick="Save" disabled="@(!_canSave || _isSaving)">
+    <button class="btn btn-primary" @onclick="Save" disabled="@(_isSaving || _isProcessing)">
         @if (_isSaving)
         {
             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -40,6 +40,29 @@
     <hr>
 </div>
 
+
+@if (showDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-@(isErrorDialog ? "danger" : "success")">
+                <div class="modal-header bg-@(isErrorDialog ? "danger" : "success") text-white">
+                    <h5 class="modal-title">@(isErrorDialog ? "Error" : "Success")</h5>
+                    <button type="button" class="btn-close text-white" @onclick="CloseDialog" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light text-@(isErrorDialog ? "danger" : "success")">
+                    <p>@(isErrorDialog ? "Failed to save data. Please try again. If the issue persists, contact support a 0719217216 (ss.vincen@gmail.com)"
+                        : "Data has been saved successfully!")</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-@(isErrorDialog ? "danger" : "success")" @onclick="CloseDialog">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
@@ -52,9 +75,80 @@
 
     private bool _isProcessing = false;
     private bool _isSaving = false;
-    private bool _canSave = false;
     private Timer? _timer;
+    private bool showDialog = false;
+    private bool isErrorDialog = false;
 
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(UpdateUI, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+
+    private async Task Start()
+    {
+        if (_isProcessing) return;
+
+        _isProcessing = true;
+        StateHasChanged();
+
+        Logger.LogInformation("Starting computation...");
+
+        await ThreadingService.Start();
+
+        Logger.LogInformation("Computation complete.");
+        _isProcessing = false;
+        StateHasChanged();
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            if (_isSaving)
+            {
+                return;
+            }
+            _isSaving = true;
+            StateHasChanged();
+
+            Logger.LogInformation("Saving data...");
+            await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
+            await ThreadingService.Save();
+
+            Logger.LogInformation("Done saving data.");
+            _isSaving = false;
+            showDialog = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error saving data. Error: {ex.Message}");
+            isErrorDialog = true;
+            showDialog = true;
+            _isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+
+    //Destroy the timer when the component is disposed to prevent memory leaks
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+
+    private async Task CloseDialog()
+    {
+        showDialog = false;
+        isErrorDialog = false;
+        await Task.Delay(1);
+        ThreadingService.ResetCount();
+        StateHasChanged();
+    }
 
     private void UpdateUI(object? state)
     {
@@ -66,48 +160,5 @@
             _primeNumbers = ThreadingService.GetPrimeNumbers();
             StateHasChanged();
         });
-    }   
-
-
-
-    protected override void OnInitialized()
-    {
-        _timer = new Timer(UpdateUI, null, 0, 500);
-        // _timer = new Timer(UpdateUI, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
-    }
-
-    private async Task Start()
-    {
-        if (_isProcessing) return;
-
-        _isProcessing = true;
-        _canSave = false; // Ensure save is disabled while processing
-        StateHasChanged();
-
-        Logger.LogInformation("Starting computation...");
-
-        await ThreadingService.Start();
-
-        Logger.LogInformation("Computation complete.");
-        _isProcessing = false;
-        _canSave = true; // Allow saving after computation
-        StateHasChanged();
-    }
-
-    private async Task Save()
-    {
-        if (!_canSave || _isSaving) return;
-
-        _isSaving = true;
-        StateHasChanged();
-
-        Logger.LogInformation("Saving data...");
-        await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
-        await ThreadingService.Save();
-
-        Logger.LogInformation("Done saving data.");
-        _isSaving = false;
-        _canSave = false; // Prevent saving again after one save
-        StateHasChanged();
     }
 }
