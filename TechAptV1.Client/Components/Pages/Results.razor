@@ -1,4 +1,5 @@
 ﻿@page "/results"
+@using System.Xml.Serialization
 @using TechAptV1.Client.Models
 @using TechAptV1.Client.Services
 
@@ -6,51 +7,211 @@
 <p>The table shows the top N numbers generated. The download XML and Binary feature allows you to download the entire data set</p>
 
 <div>
-    <button class="btn btn-primary" @onclick="(async () => await this.DownloadXml())">Download XML</button>
-    <button class="btn btn-primary" @onclick="(async () => await this.DownloadBinary())">Download Binary</button>
+    @* To prevent user from click two buttons at the same time. One button at a time *@
+    <button class="btn btn-primary" @onclick="DownloadXml" disabled="@(_isDownloadingXml || _isDownloadingBinary)">
+        @if (_isDownloadingXml)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Downloading XML...</span>
+        }
+        else
+        {
+            <span>Download XML</span>
+        }
+    </button>
+    <button class="btn btn-primary" @onclick="DownloadBinary" disabled="@(_isDownloadingBinary || _isDownloadingXml)">
+        @if (_isDownloadingBinary)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Downloading Binary...</span>
+        }
+        else
+        {
+            <span>Download Binary</span>
+        }
+    </button>
 </div>
 <div>
     <table class="table">
         <thead>
-        <tr>
-            <th>Value</th>
-            <th>IsPrime</th>
-        </tr>
+            <tr>
+                <th>Value</th>
+                <th>IsPrime</th>
+            </tr>
         </thead>
         <tbody>
-        @foreach (var item in this.numbers)
-        {
-            <tr>
-                <td>@item.Value</td>
-                <td>@item.IsPrime</td>
-            </tr>
-        }
+            @foreach (var item in this.numbers)
+            {
+                <tr>
+                    <td>@item.Value</td>
+                    <td>@item.IsPrime</td>
+                </tr>
+            }
         </tbody>
     </table>
 </div>
 
+@if (_showDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-info">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">Notice</h5>
+                    <button type="button" class="btn-close text-white" @onclick="CloseDialog" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light text-info">
+                    <p>@_dialogMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info" @onclick="CloseDialog">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
+    @inject ThreadingService ThreadingService
+    @inject IJSRuntime JS
 
     private List<Number> numbers = new ();
+    private bool _isDownloadingXml = false;
+    private bool _isDownloadingBinary = false;
+    private bool _showDialog = false;
+    private string _dialogMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        numbers = await ThreadingService.Get(20);
+    }
+
+
+    private void CloseDialog()
+    {
+        _showDialog = false;
+        StateHasChanged();
+    }
+
 
     /// <summary>
     /// Fetches all the records, serializes them to XML and downloads the file
     /// </summary>
     private async Task DownloadXml()
     {
-        this.Logger.LogInformation("DownloadXml");
-        throw new NotImplementedException();
+        if (_isDownloadingXml) return; // Prevent duplicate clicks
+
+        try
+        {
+            _isDownloadingXml = true;
+            StateHasChanged();
+            await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
+            Logger.LogInformation("DownloadXml started...");
+
+            var dbnumbers = await ThreadingService.GetAll();
+            if (dbnumbers == null || !dbnumbers.Any())
+            {
+                Logger.LogWarning("No data found to download.");
+                _isDownloadingXml = false;
+                _dialogMessage = "No data found to download.";
+                _showDialog = true;
+                StateHasChanged();
+                return;
+            }
+
+            var fileName = "NumbersData.xml";
+
+            // Stream XML instead of loading into memory
+            using var stream = new MemoryStream();
+            using var writer = new StreamWriter(stream, leaveOpen: true);
+            var xmlSerializer = new XmlSerializer(typeof(List<Number>));
+
+            xmlSerializer.Serialize(writer, dbnumbers);
+            await writer.FlushAsync();
+
+            // Send the file directly to the user instead of using Base64
+            var fileBytes = stream.ToArray();
+            var fileContent = new byte[fileBytes.Length];
+            Buffer.BlockCopy(fileBytes, 0, fileContent, 0, fileBytes.Length);
+            
+            await JS.InvokeVoidAsync("triggerFileDownloadDirect", fileName, fileContent, "application/xml");
+
+            Logger.LogInformation("XML file download completed successfully.");
+        }
+        catch (OutOfMemoryException ex)
+        {
+            Logger.LogError(ex, "Out of memory error while downloading XML.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during XML file download.");
+        }
+        finally
+        {
+            _isDownloadingXml = false;
+            StateHasChanged();
+        }
     }
+
 
     /// <summary>
     /// Fetches all the records, serializes them to Binary and downloads the file
     /// </summary>
     private async Task DownloadBinary()
     {
-        this.Logger.LogInformation("DownloadBinary");
-        throw new NotImplementedException();
+        if (_isDownloadingBinary) return;
+        try
+        {
+            _isDownloadingBinary = true;
+            StateHasChanged();
+            await Task.Delay(1);
+            Logger.LogInformation("DownloadBinary");
+
+            var dbnumbers = await ThreadingService.GetAll();
+            if (dbnumbers == null || !dbnumbers.Any())
+            {
+                Logger.LogWarning("No data found to download.");
+                _isDownloadingBinary = false;
+                _dialogMessage = "No data found to download.";
+                _showDialog = true;
+                StateHasChanged();
+                return;
+            }
+
+            using var memoryStream = new MemoryStream();
+            using (var writer = new BinaryWriter(memoryStream))
+            {
+                foreach (var num in dbnumbers)
+                {
+                    writer.Write(num.Value);
+                    writer.Write(num.IsPrime);
+                }
+            }
+
+            var fileBytes = memoryStream.ToArray();
+            var fileName = "NumbersData.bin";
+
+            await JS.InvokeVoidAsync("triggerFileDownloadDirect", fileName, fileBytes, "application/octet-stream");
+
+            Logger.LogInformation("Binary file download completed successfully.");
+        }
+        catch (OutOfMemoryException ex)
+        {
+            Logger.LogError(ex, "Out of memory error while downloading Binary.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during Binary file download.");
+        }
+        finally
+        {
+            _isDownloadingBinary = false;
+            StateHasChanged();
+        }
     }
+
 
 }

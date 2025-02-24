@@ -1,11 +1,33 @@
 ﻿@page "/threading"
+@using TechAptV1.Client.Services
 
 <h3>Threading &amp; Data Persistence</h3>
 
 <div>
-    <button class="btn btn-primary" @onclick="(async () => await this.Start())">Start</button>
-    <button class="btn btn-primary" @onclick="(async () => await this.Save())">Save</button>
+    <button class="btn btn-primary" @onclick="Start" disabled="@(_isProcessing || _isSaving)">
+        @if (_isProcessing)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Processing Data...</span>
+        }
+        else
+        {
+            <span>Start</span>
+        }
+    </button>
+    <button class="btn btn-primary" @onclick="Save" disabled="@(_isSaving || _isProcessing)">
+        @if (_isSaving)
+        {
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span> Saving Data...</span>
+        }
+        else
+        {
+            <span>Save</span>
+        }
+    </button>
 </div>
+
 <div>
     <hr>
     <h4>Numbers:</h4>
@@ -18,25 +40,125 @@
     <hr>
 </div>
 
+
+@if (showDialog)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-@(isErrorDialog ? "danger" : "success")">
+                <div class="modal-header bg-@(isErrorDialog ? "danger" : "success") text-white">
+                    <h5 class="modal-title">@(isErrorDialog ? "Error" : "Success")</h5>
+                    <button type="button" class="btn-close text-white" @onclick="CloseDialog" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light text-@(isErrorDialog ? "danger" : "success")">
+                    <p>@(isErrorDialog ? "Failed to save data. Please try again. If the issue persists, contact support a 0719217216 (ss.vincen@gmail.com)"
+                        : "Data has been saved successfully!")</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-@(isErrorDialog ? "danger" : "success")" @onclick="CloseDialog">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
+    @inject ThreadingService ThreadingService
 
     private int _oddNumbers = 0;
     private int _evenNumbers = 0;
     private int _primeNumbers = 0;
     private int _totalNumbers = 0;
 
+    private bool _isProcessing = false;
+    private bool _isSaving = false;
+    private Timer? _timer;
+    private bool showDialog = false;
+    private bool isErrorDialog = false;
+
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(UpdateUI, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+
     private async Task Start()
     {
-        this.Logger.LogInformation("Start");
-        throw new NotImplementedException();
+        if (_isProcessing) return;
+
+        _isProcessing = true;
+        StateHasChanged();
+
+        Logger.LogInformation("Starting computation...");
+
+        await ThreadingService.Start();
+
+        Logger.LogInformation("Computation complete.");
+        _isProcessing = false;
+        StateHasChanged();
     }
 
     private async Task Save()
     {
-        this.Logger.LogInformation("Save");
-        throw new NotImplementedException();
+        try
+        {
+            if (_isSaving)
+            {
+                return;
+            }
+            _isSaving = true;
+            StateHasChanged();
+
+            Logger.LogInformation("Saving data...");
+            await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
+            await ThreadingService.Save();
+
+            Logger.LogInformation("Done saving data.");
+            _isSaving = false;
+            showDialog = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error saving data. Error: {ex.Message}");
+            isErrorDialog = true;
+            showDialog = true;
+            _isSaving = false;
+            StateHasChanged();
+        }
     }
 
+
+    //Destroy the timer when the component is disposed to prevent memory leaks
+    public void Dispose()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+
+    private async Task CloseDialog()
+    {
+        showDialog = false;
+        isErrorDialog = false;
+        await Task.Delay(1);
+        ThreadingService.ResetCount();
+        StateHasChanged();
+    }
+
+    private void UpdateUI(object? state)
+    {
+        InvokeAsync(() =>
+        {
+            _totalNumbers = ThreadingService.GetTotalNumbers();
+            _oddNumbers = ThreadingService.GetOddNumbers();
+            _evenNumbers = ThreadingService.GetEvenNumbers();
+            _primeNumbers = ThreadingService.GetPrimeNumbers();
+            StateHasChanged();
+        });
+    }
 }
