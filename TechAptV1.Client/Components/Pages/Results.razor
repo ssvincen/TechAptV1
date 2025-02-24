@@ -32,8 +32,14 @@
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
+    @inject ThreadingService ThreadingService
 
     private List<Number> numbers = new ();
+
+    protected override async Task OnInitializedAsync()
+    {
+        numbers = await ThreadingService.Get(20);
+    }
 
     /// <summary>
     /// Fetches all the records, serializes them to XML and downloads the file
@@ -41,7 +47,7 @@
     private async Task DownloadXml()
     {
         this.Logger.LogInformation("DownloadXml");
-        throw new NotImplementedException();
+        var numbers = await ThreadingService.Get(5);
     }
 
     /// <summary>
@@ -50,7 +56,7 @@
     private async Task DownloadBinary()
     {
         this.Logger.LogInformation("DownloadBinary");
-        throw new NotImplementedException();
+        var numbers = await ThreadingService.GetAll();
     }
 
 }

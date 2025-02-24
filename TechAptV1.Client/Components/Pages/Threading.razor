@@ -1,4 +1,5 @@
 ﻿@page "/threading"
+@using TechAptV1.Client.Services
 
 <h3>Threading &amp; Data Persistence</h3>
 
@@ -42,6 +43,7 @@
 @code {
 
     [Inject] public required ILogger<Threading> Logger { get; set; }
+    @inject ThreadingService ThreadingService
 
     private int _oddNumbers = 0;
     private int _evenNumbers = 0;
@@ -51,6 +53,28 @@
     private bool _isProcessing = false;
     private bool _isSaving = false;
     private bool _canSave = false;
+    private Timer? _timer;
+
+
+    private void UpdateUI(object? state)
+    {
+        InvokeAsync(() =>
+        {
+            _totalNumbers = ThreadingService.GetTotalNumbers();
+            _oddNumbers = ThreadingService.GetOddNumbers();
+            _evenNumbers = ThreadingService.GetEvenNumbers();
+            _primeNumbers = ThreadingService.GetPrimeNumbers();
+            StateHasChanged();
+        });
+    }   
+
+
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(UpdateUI, null, 0, 500);
+        // _timer = new Timer(UpdateUI, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
 
     private async Task Start()
     {
@@ -61,8 +85,10 @@
         StateHasChanged();
 
         Logger.LogInformation("Starting computation...");
-        await Task.Delay(5000); // Simulating computation
 
+        await ThreadingService.Start();
+
+        Logger.LogInformation("Computation complete.");
         _isProcessing = false;
         _canSave = true; // Allow saving after computation
         StateHasChanged();
@@ -76,8 +102,10 @@
         StateHasChanged();
 
         Logger.LogInformation("Saving data...");
-        await Task.Delay(1000); // Simulating save
+        await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
+        await ThreadingService.Save();
 
+        Logger.LogInformation("Done saving data.");
         _isSaving = false;
         _canSave = false; // Prevent saving again after one save
         StateHasChanged();

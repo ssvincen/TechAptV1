@@ -2,6 +2,7 @@
 
 using Serilog;
 using TechAptV1.Client.Components;
+using TechAptV1.Client.Services;
 
 namespace TechAptV1.Client
 {
@@ -21,8 +22,12 @@ namespace TechAptV1.Client
 
                 // Add services to the container.
                 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+                builder.Services.AddSingleton<ThreadingService>();
+                builder.Services.AddSingleton<DataService>();
 
                 var app = builder.Build();
+
+                InitializeDatabaseAsync(app).GetAwaiter().GetResult();
 
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
@@ -42,6 +47,13 @@ namespace TechAptV1.Client
                 Console.WriteLine("Fatal exception in Program");
                 Console.WriteLine(exception);
             }
+        }
+
+        private static async Task InitializeDatabaseAsync(WebApplication app)
+        {
+            using var scope = app.Services.CreateScope();
+            var dataService = scope.ServiceProvider.GetRequiredService<DataService>();
+            await dataService.InitializeDatabaseAsync();
         }
     }
 }
