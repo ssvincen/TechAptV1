@@ -38,6 +38,7 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
         }
 
         // Check if there are existing values if there are, reset them
+        // just checking total numbers instead of odd, even and prime
         if (_totalNumbers > 0)
         {
             logger.LogInformation($"Previous computation detected - Odd: {_oddNumbers}, Even: {_evenNumbers}, Prime: {_primeNumbers}, Total: {_totalNumbers}");

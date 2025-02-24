@@ -65,18 +65,20 @@
         numbers = await ThreadingService.Get(20);
     }
 
+
     /// <summary>
     /// Fetches all the records, serializes them to XML and downloads the file
     /// </summary>
     private async Task DownloadXml()
     {
         if (isDownloadingXml) return; // Prevent duplicate clicks
+
         try
         {
             isDownloadingXml = true;
             StateHasChanged();
             await Task.Delay(1); //Adding a delay so that the UI doesn't freeze while saving data and displaying the spinner
-            this.Logger.LogInformation("DownloadXml");
+            Logger.LogInformation("DownloadXml started...");
 
             var dbnumbers = await ThreadingService.GetAll();
             if (dbnumbers == null || !dbnumbers.Any())
@@ -84,23 +86,25 @@
                 Logger.LogWarning("No data found to download.");
                 return;
             }
+
             var fileName = "NumbersData.xml";
-            // Stream XML directly to memory (instead of writing to file)
-            using var memoryStream = new MemoryStream();
-            // using var writer = new StreamWriter(memoryStream, Encoding.UTF8, 4096, leaveOpen: true);
-            using var writer = new StreamWriter(memoryStream, leaveOpen: true);
+
+            // Stream XML instead of loading into memory
+            using var stream = new MemoryStream();
+            using var writer = new StreamWriter(stream, leaveOpen: true);
             var xmlSerializer = new XmlSerializer(typeof(List<Number>));
 
             xmlSerializer.Serialize(writer, dbnumbers);
             await writer.FlushAsync();
 
-            // Convert memory stream to Base64 for JavaScript download
-            var base64Data = Convert.ToBase64String(memoryStream.ToArray());
+            // Send the file directly to the user instead of using Base64
+            var fileBytes = stream.ToArray();
+            var fileContent = new byte[fileBytes.Length];
+            Buffer.BlockCopy(fileBytes, 0, fileContent, 0, fileBytes.Length);
+            
+            await JS.InvokeVoidAsync("triggerFileDownloadDirect", fileName, fileContent, "application/xml");
 
-            // Call JavaScript to trigger download
-            await JS.InvokeVoidAsync("triggerFileDownload", fileName, base64Data, "application/xml");
-
-            Logger.LogInformation("XML file download triggered successfully.");
+            Logger.LogInformation("XML file download completed successfully.");
         }
         catch (OutOfMemoryException ex)
         {
@@ -117,6 +121,7 @@
         }
     }
 
+
     /// <summary>
     /// Fetches all the records, serializes them to Binary and downloads the file
     /// </summary>
@@ -128,40 +133,46 @@
             isDownloadingBinary = true;
             StateHasChanged();
             await Task.Delay(1);
-            this.Logger.LogInformation("DownloadBinary");
-            var dbnumbers = await ThreadingService.Get(5);
+            Logger.LogInformation("DownloadBinary");
+
+            var dbnumbers = await ThreadingService.GetAll();
             if (dbnumbers == null || !dbnumbers.Any())
             {
                 Logger.LogWarning("No data found to download.");
                 return;
             }
+
             using var memoryStream = new MemoryStream();
             using (var writer = new BinaryWriter(memoryStream))
             {
-                foreach (var num in numbers)
+                foreach (var num in dbnumbers)
                 {
                     writer.Write(num.Value);
                     writer.Write(num.IsPrime);
                 }
             }
+
             var fileBytes = memoryStream.ToArray();
             var fileName = "NumbersData.bin";
-            await JS.InvokeVoidAsync("triggerFileDownload", fileName, Convert.ToBase64String(fileBytes), "application/octet-stream");
-            this.Logger.LogInformation("Binary file download completed successfully.");
+
+            await JS.InvokeVoidAsync("triggerFileDownloadDirect", fileName, fileBytes, "application/octet-stream");
+
+            Logger.LogInformation("Binary file download completed successfully.");
         }
         catch (OutOfMemoryException ex)
         {
-            this.Logger.LogError(ex, "Out of memory error while downloading Binary.");
+            Logger.LogError(ex, "Out of memory error while downloading Binary.");
         }
         catch (Exception ex)
         {
-            this.Logger.LogError(ex, "Error during Binary file download.");
+            Logger.LogError(ex, "Error during Binary file download.");
         }
         finally
         {
-            isDownloadingXml = false;
+            isDownloadingBinary = false;
             StateHasChanged();
         }
     }
+
 
 }

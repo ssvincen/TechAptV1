@@ -1,4 +1,24 @@
-﻿window.triggerFileDownload = (fileName, base64Data, contentType) => {
+﻿window.triggerFileDownloadDirect = (fileName, fileContent, contentType) => {
+    try {
+        const blob = new Blob([new Uint8Array(fileContent)], { type: contentType });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Release the object URL to free memory
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error triggering file download:", error);
+    }
+};
+
+
+window.triggerFileDownload = (fileName, base64Data, contentType) => {
     try {
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
@@ -21,19 +41,6 @@
     }
 };
 
-//if you want to download file from url of the api so that it reduce cpu usage
-window.triggerFileDownloadFromUrl = (fileUrl) => {
-    try {
-        const link = document.createElement("a");
-        link.href = fileUrl;
-        link.download = "NumbersData.xml";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } catch (error) {
-        console.error("Error in triggerFileDownloadFromUrl:", error);
-    }
-};
 
 window.triggerFileDownloadBase64Data = (fileName, base64Data, mimeType) => {
     try {
@@ -47,3 +54,5 @@ window.triggerFileDownloadBase64Data = (fileName, base64Data, mimeType) => {
         console.error("Error in triggerFileDownloadFromUrl:", error);
     }
 };
+
+
