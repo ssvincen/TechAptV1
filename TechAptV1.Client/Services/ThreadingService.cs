@@ -62,7 +62,7 @@ public sealed class ThreadingService(ILogger<ThreadingService> logger, DataServi
             {
                 if (_numbers.Count >= InitialEntries)
                 {
-                    Task.Run(GenerateEvenNumbers); // More efficient than Thread.Start()
+                    Task.Run(GenerateEvenNumbers);
                 }
             }
             //I notice that the CPU usage is high when the number of threads is high
