@@ -29,4 +29,136 @@
 
     <h6>Task 1 - Threading &amp; Data Persistence: <NavLink class="nav-link" href="threading">View Task 1</NavLink></h6>
     <h6>Task 2 - Results &amp; Data Retrieval: <NavLink class="nav-link" href="results">View Task 2</NavLink></h6>
+
+   
+</div>
+
+<div>
+    <h2>Cover Page</h2>
+
+    <p>This document section explain the approach I took in the development of this project, it outlines the reasoning behind key decisions and considerations made to ensure efficiency, scalability, and maintainability.</p>
+    Files Involved:
+    <ul>
+        <li>Threading.razor - Implements a UI with Start and Save buttons.</li>
+        <li>Program.cs</li> - Main Entry Point, adding configuration and service
+        <li>Results.razor - Displays the save data and allow the data to be downloaded.</li>
+        <li>App.razor</li> - used to add filedownload.js to the main project so that it can be available to the solution.
+        <li>AppDbContext.cs</li> - Creating db and table
+        <li>DataService.cs</li> - Retriveal and Saving Data
+
+    </ul>
+    <div>
+
+ 
+    <p>
+        <h6><b>Threading.razor</b></h6>
+        <ul>
+            <li>
+                <b>Approach: </b>Dynamically enabled or disabled based on the boolean variables <code>_isProcessing</code> and <code>_isSaving</code> (clicked button).
+                <br><b>Reason: </b> This approach ensures that one action is performed at a time and prevents duplicate submissions.
+                <br><b>Considerations : </b> State Management
+            </li>
+            <li>
+                <b>Approach: </b>Adding load indicators
+                <br><strong>Reason:</strong> Indicator for better user experience to show that the request is being processed.
+                <br><b>Considerations : </b> Performance Optimization
+            </li>
+            <li>
+                <b>Approach: </b>Modal Dialog for Success/Error Messages
+                <br><strong>Reason:</strong> The modal dialog helps inform users of success or failure, reducing frustration.
+                <br><b>Considerations : </b> User feedback
+            </li>            
+        </ul>
+    </p>
+
+
+    <p>
+        <h6><b>Results.razor </b></h6>
+        <ul>
+            <li>
+                <b>Approach: </b>Adding spinner and Modal
+                <br><b>Reason: </b> This approach gives a user a real-time feedback so that he/she is aware that his or her request is being processed.
+                <br><b>Considerations : </b> User experience
+            </li>
+            <li>
+                <b>Approach: </b>Disable buttons while a download is in progress
+                <br><strong>Reason:</strong> Buttons are disabled when a download is in progress to prevent concurrent actions.
+                <br><b>Considerations : </b> Since we download a huge data, we need to disable the buttons while the download is in progress. to prevent overloading the system with many request.
+            </li>
+            <li>
+                 <b>Approach: </b>Logging and exception handling
+                <br><strong>Reason:</strong> This will be useful to track any errors that may occur during the download process, so that we can identify and fix any issues that may occur.
+                <br><b>Considerations : </b> Help the developer to find and fix any issues that may occur during the download process.
+            </li>
+            <li>
+                <b>Approach: </b>Streaming XML
+                <br><strong>Reason:</strong>Use MemoryStream instead of keeping large data sets in RAM.
+                <br><b>Considerations : </b> Memory Management and Performance
+            </li>
+            <li>
+                <b>Approach: </b>Streaming
+                <br><strong>Reason:</strong>Ensure proper disposal of streams.
+                <br><b>Considerations : </b>Memory Leaks.
+            </li>
+        </ul>
+    </p>
+
+
+    <p>
+        <h6><b>ThreadingService.cs </b></h6>
+        <ul>
+            <li>
+                <b>Approach: Uses locks</b>
+                <br><b>Reason: To ensure thread safety while changing shared lists and counters(data).</b>
+                <br><b>Considerations : Prevent unwanted changing of data</b> 
+            </li>
+            <li>
+                <b>Approach: Adding <code>_isRunning</code></b>
+                <br><b>Reason: Making sure that one request runs at a time.</b>
+                <br><b>Considerations : Prevent duplicate requests</b>
+            </li>
+            <li>
+                <b>Approach: </b>Logging and exception handling
+                <br><strong>Reason:</strong> This will be useful to track any errors that may occur during the download process, so that we can identify and fix any issues that may occur.
+                <br><b>Considerations : </b> Help the developer to find and fix any issues that may occur during the download process.
+            </li>
+        </ul>
+    </p>
+
+    <p>
+        <h6><b>DataService.cs </b></h6>
+        <ul>
+            <li>
+                <b>Approach: Uses LINQ</b>
+                <br><b>Reason: <code>(Select(n => new Number { Value = n }))</code> to transform list data into database objects.</b>
+                <br><b>Considerations : Prevent unwanted changing of data</b>
+            </li>
+            <li>
+                <b>Approach: Thread sleeping</b>
+                <br><b>Reason: <code>(await Task.Delay(100))</code> to prevent high CPU usage due to excessive looping.</b>
+                <br><b>Considerations : Performance Optimization and CPU Management</b>
+            </li>
+            <li>
+                <b>Approach: </b>Logging and exception handling
+                <br><strong>Reason:</strong> This will be useful to track any errors that may occur during the download process, so that we can identify and fix any issues that may occur.
+                <br><b>Considerations : </b> Help the developer to find and fix any issues that may occur during the download process.
+            </li>
+        </ul>
+    </p>
+
+
+   
+    </div>
+    <p>
+        This project was developed with a focus on performance, maintainability, and scalability. The design choices ensure efficient data handling, controlled multi-threading execution,
+        and a robust persistence strategy, ensuring that the application can handle large volumes of data and handle concurrent requests efficiently.
+        On the code I made use of await Task.Delay this was done to ensure that the UI is not blocked while the data is being saved to the database, and the ui update the progross(spinner)
+        and the value with generating the even, odd numbers and also preventing excessive CPU usage.
+    </p>
+
+
+    <p>
+        Future improvements may include database indexing for faster queries, enhanced logging mechanisms, and optimized threading to further improve CPU
+        efficiency and introduce API endpoints for data retrieval and so that it can be used by other application when needed.
+    </p>
 </div>
